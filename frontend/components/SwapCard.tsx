@@ -8,6 +8,7 @@ import {
   usePublicClient,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useBalance,
 } from "wagmi";
 import { parseUnits, formatUnits, maxUint256, encodeFunctionData } from "viem";
 import {
@@ -30,6 +31,18 @@ type Quote = { amountOut: bigint; fee: number };
 
 const FEE_PCT_LABEL = (FEE_BIPS / 100).toFixed(2) + "%";
 
+// Reserve a tiny amount of native token for gas when user clicks MAX.
+// Same value across chains is fine — gas costs cents on L2s, native is the gas token.
+const NATIVE_GAS_RESERVE = parseUnits("0.001", 18);
+
+function formatBalance(value: bigint, decimals: number, places = 4): string {
+  const formatted = formatUnits(value, decimals);
+  const num = Number(formatted);
+  if (num === 0) return "0";
+  if (num < 0.0001) return "<0.0001";
+  return num.toLocaleString(undefined, { maximumFractionDigits: places });
+}
+
 export function SwapCard() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -37,7 +50,6 @@ export function SwapCard() {
   const { writeContractAsync } = useWriteContract();
 
   const supported = isSupportedChain(chainId);
-  // Fallback to Base if chain isn't supported (UI defaults)
   const effectiveChainId = supported ? chainId : BASE_CHAIN_ID;
   const v3 = UNISWAP_V3[effectiveChainId];
   const tokens = TOKENS[effectiveChainId] ?? TOKENS[BASE_CHAIN_ID];
@@ -52,7 +64,6 @@ export function SwapCard() {
   const [pendingTx, setPendingTx] = useState<`0x${string}` | undefined>(undefined);
   const [statusMsg, setStatusMsg] = useState<string>("");
 
-  // Reset tokens when chain changes
   useEffect(() => {
     const list = TOKENS[effectiveChainId] ?? TOKENS[BASE_CHAIN_ID];
     setTokenIn(list[0]);
@@ -60,6 +71,21 @@ export function SwapCard() {
     setQuote(null);
     setAmountIn("");
   }, [effectiveChainId]);
+
+  // ---- Balance reads (wagmi handles native vs ERC20 via the `token` arg) ----
+  const { data: balanceIn, refetch: refetchBalanceIn } = useBalance({
+    address,
+    token: tokenIn.isNative ? undefined : tokenIn.address,
+    chainId: effectiveChainId,
+    query: { enabled: !!address && supported },
+  });
+
+  const { data: balanceOut, refetch: refetchBalanceOut } = useBalance({
+    address,
+    token: tokenOut.isNative ? undefined : tokenOut.address,
+    chainId: effectiveChainId,
+    query: { enabled: !!address && supported },
+  });
 
   const parsedAmountIn = useMemo(() => {
     if (!amountIn || isNaN(Number(amountIn))) return 0n;
@@ -104,9 +130,7 @@ export function SwapCard() {
         if (amountOut > 0n && (!best || amountOut > best.amountOut)) {
           best = { amountOut, fee };
         }
-      } catch {
-        // pool may not exist for this fee tier — skip
-      }
+      } catch {}
     }
     setQuote(best);
     setQuoting(false);
@@ -127,6 +151,7 @@ export function SwapCard() {
   });
 
   const needsApproval = !tokenIn.isNative && (allowance ?? 0n) < parsedAmountIn;
+  const insufficientBalance = balanceIn ? parsedAmountIn > balanceIn.value : false;
 
   const { isLoading: txConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({
     hash: pendingTx,
@@ -144,6 +169,9 @@ export function SwapCard() {
       setStatusMsg(`Swap confirmed on ${meta?.name}! +5 points`);
       setAmountIn("");
       setQuote(null);
+      // Refresh balances
+      refetchBalanceIn();
+      refetchBalanceOut();
       window.dispatchEvent(new Event("basedswap:quest-updated"));
       const timer = setTimeout(() => {
         setPendingTx(undefined);
@@ -151,7 +179,7 @@ export function SwapCard() {
       }, 4000);
       return () => clearTimeout(timer);
     }
-  }, [txSuccess, pendingTx, address, tokenIn.symbol, tokenOut.symbol, amountIn, meta?.name]);
+  }, [txSuccess, pendingTx, address, tokenIn.symbol, tokenOut.symbol, amountIn, meta?.name, refetchBalanceIn, refetchBalanceOut]);
 
   const handleApprove = async () => {
     if (!address || tokenIn.isNative || !supported) return;
@@ -234,6 +262,25 @@ export function SwapCard() {
     setQuote(null);
   };
 
+  const handleMax = () => {
+    if (!balanceIn) return;
+    let max = balanceIn.value;
+    if (tokenIn.isNative && max > NATIVE_GAS_RESERVE) {
+      max = max - NATIVE_GAS_RESERVE;
+    }
+    setAmountIn(formatUnits(max, tokenIn.decimals));
+  };
+
+  const handlePercent = (pct: number) => {
+    if (!balanceIn) return;
+    let max = balanceIn.value;
+    if (tokenIn.isNative && max > NATIVE_GAS_RESERVE) {
+      max = max - NATIVE_GAS_RESERVE;
+    }
+    const v = (max * BigInt(pct)) / 100n;
+    setAmountIn(formatUnits(v, tokenIn.decimals));
+  };
+
   const grossOut = quote?.amountOut ?? 0n;
   const protocolFeeAmount = (grossOut * BigInt(FEE_BIPS)) / 10000n;
   const netOut = grossOut - protocolFeeAmount;
@@ -254,6 +301,8 @@ export function SwapCard() {
     buttonLabel = "Enter an amount";
   } else if (tokenIn.address === tokenOut.address && tokenIn.symbol === tokenOut.symbol) {
     buttonLabel = "Pick different tokens";
+  } else if (insufficientBalance) {
+    buttonLabel = `Insufficient ${tokenIn.symbol} balance`;
   } else if (quoting) {
     buttonLabel = "Fetching best price...";
   } else if (!quote) {
@@ -292,9 +341,29 @@ export function SwapCard() {
         </div>
       </div>
 
+      {/* From */}
       <div className="rounded-xl border border-border bg-panel2 p-4">
         <div className="mb-2 flex items-center justify-between text-xs text-muted">
           <span>From</span>
+          {balanceIn && address && (
+            <div className="flex items-center gap-2">
+              <span>
+                Balance: {formatBalance(balanceIn.value, tokenIn.decimals)} {tokenIn.symbol}
+              </span>
+              <button
+                onClick={() => handlePercent(50)}
+                className="rounded border border-border px-1.5 py-0.5 text-[10px] hover:border-accent hover:text-white"
+              >
+                50%
+              </button>
+              <button
+                onClick={handleMax}
+                className="rounded border border-accent px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
+              >
+                MAX
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -322,9 +391,15 @@ export function SwapCard() {
         </button>
       </div>
 
+      {/* To */}
       <div className="rounded-xl border border-border bg-panel2 p-4">
         <div className="mb-2 flex items-center justify-between text-xs text-muted">
           <span>To (estimated, after fee)</span>
+          {balanceOut && address && (
+            <span>
+              Balance: {formatBalance(balanceOut.value, tokenOut.decimals)} {tokenOut.symbol}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <input
@@ -401,10 +476,26 @@ function TokenPicker({
   onSelect: (t: Token) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return tokens;
+    return tokens.filter(
+      (t) =>
+        t.symbol.toLowerCase().includes(q) ||
+        t.name.toLowerCase().includes(q) ||
+        t.address.toLowerCase() === q
+    );
+  }, [tokens, query]);
+
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          setOpen(!open);
+          setQuery("");
+        }}
         className="flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 hover:border-accent"
       >
         <div className="h-5 w-5 rounded-full bg-gradient-to-br from-accent to-accent2" />
@@ -417,23 +508,44 @@ function TokenPicker({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-border bg-panel p-2 shadow-2xl">
-            {tokens.map((t) => (
-              <button
-                key={t.address + t.symbol}
-                onClick={() => {
-                  onSelect(t);
-                  setOpen(false);
-                }}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-panel2"
-              >
-                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-accent to-accent2" />
-                <div>
-                  <div className="text-sm font-medium">{t.symbol}</div>
-                  <div className="text-xs text-muted">{t.name}</div>
+          <div className="absolute right-0 z-20 mt-2 w-72 rounded-xl border border-border bg-panel p-2 shadow-2xl">
+            <input
+              type="text"
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by symbol, name, or address"
+              className="mb-2 w-full rounded-lg border border-border bg-panel2 px-3 py-2 text-sm outline-none focus:border-accent"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className="max-h-72 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <div className="px-3 py-4 text-center text-xs text-muted">
+                  No tokens match &quot;{query}&quot;
                 </div>
-              </button>
-            ))}
+              ) : (
+                filtered.map((t) => (
+                  <button
+                    key={t.address + t.symbol}
+                    onClick={() => {
+                      onSelect(t);
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-panel2"
+                  >
+                    <div className="h-6 w-6 shrink-0 rounded-full bg-gradient-to-br from-accent to-accent2" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{t.symbol}</div>
+                      <div className="truncate text-xs text-muted">{t.name}</div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="mt-2 border-t border-border px-2 pt-2 text-[10px] text-muted">
+              {filtered.length} of {tokens.length} tokens
+            </div>
           </div>
         </>
       )}
