@@ -1,14 +1,24 @@
 "use client";
 
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { base, baseSepolia } from "wagmi/chains";
+import {
+  arbitrum,
+  avalanche,
+  base,
+  baseSepolia,
+  bsc,
+  mainnet,
+  optimism,
+  polygon,
+} from "wagmi/chains";
 
-// Get a free WalletConnect Project ID at https://cloud.walletconnect.com
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "YOUR_PROJECT_ID";
 
 export const wagmiConfig = getDefaultConfig({
   appName: "BasedSwap",
   projectId,
-  chains: [base, baseSepolia],
+  // Chains shown in the wallet connector. Order = display order in the network dropdown.
+  // Base first because that's the home chain.
+  chains: [base, arbitrum, optimism, polygon, mainnet, bsc, avalanche, baseSepolia],
   ssr: true,
 });
