@@ -1,0 +1,21 @@
+{
+  "name": "basedswap",
+  "version": "0.1.0",
+  "description": "A Uniswap V2 fork on Base — DEX with swap, liquidity, and gamified engagement",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network baseSepolia",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network base",
+    "init-hash": "hardhat run scripts/getInitCodeHash.js",
+    "verify:testnet": "hardhat verify --network baseSepolia",
+    "verify:mainnet": "hardhat verify --network base"
+  },
+  "license": "GPL-3.0",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "dotenv": "^16.3.1",
+    "hardhat": "^2.19.0"
+  }
+}
