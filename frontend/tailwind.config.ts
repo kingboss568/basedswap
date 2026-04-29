@@ -1,24 +1,24 @@
-import type { Config } from "tailwindcss";
+"use client";
 
-const config: Config = {
-  content: ["./app/**/*.{js,ts,jsx,tsx,mdx}", "./components/**/*.{js,ts,jsx,tsx,mdx}"],
-  theme: {
-    extend: {
-      colors: {
-        bg: "#0b0d12",
-        panel: "#151821",
-        panel2: "#1c2030",
-        border: "#262a38",
-        accent: "#3b82f6",
-        accent2: "#8b5cf6",
-        muted: "#7c8499",
-      },
-      fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-      },
-    },
-  },
-  plugins: [],
-};
+import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import {
+  arbitrum,
+  avalanche,
+  base,
+  baseSepolia,
+  bsc,
+  mainnet,
+  optimism,
+  polygon,
+} from "wagmi/chains";
 
-export default config;
+const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "YOUR_PROJECT_ID";
+
+export const wagmiConfig = getDefaultConfig({
+  appName: "BasedSwap",
+  projectId,
+  // Chains shown in the wallet connector. Order = display order in the network dropdown.
+  // Base first because that's the home chain.
+  chains: [base, arbitrum, optimism, polygon, mainnet, bsc, avalanche, baseSepolia],
+  ssr: true,
+});
