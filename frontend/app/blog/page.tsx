@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Blog — BasedSwap | Multichain DEX Insights",
   description:
     "Guides, tutorials, and analysis on multichain DEX trading, airdrop farming, and DeFi development. Updated weekly.",
+  alternates: { canonical: "/blog" },
   openGraph: {
     title: "BasedSwap Blog",
     description: "Guides on multichain DEX trading and airdrop farming.",
@@ -21,9 +22,26 @@ export const metadata: Metadata = {
 
 export default function BlogIndex() {
   const posts = getAllPosts();
+  const blogJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    name: "BasedSwap Blog",
+    url: "https://basedswap-azure.vercel.app/blog",
+    blogPost: posts.map((post) => ({
+      "@type": "BlogPosting",
+      headline: post.title,
+      url: `https://basedswap-azure.vercel.app/blog/${post.slug}`,
+      datePublished: post.date,
+      inLanguage: post.language === "zh" ? "zh-Hant" : "en",
+    })),
+  };
 
   return (
     <div className="mx-auto max-w-3xl py-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }}
+      />
       <header className="mb-12">
         <h1 className="mb-3 text-4xl font-bold tracking-tight">Blog</h1>
         <p className="text-muted">

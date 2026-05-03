@@ -21,16 +21,39 @@ export default function PoolPage() {
   // Generate a few common pairs from this chain's tokens
   const native = tokens.find((t) => t.isNative);
   const stable = tokens.find((t) => t.symbol === "USDC") ?? tokens.find((t) => t.symbol === "USDT");
-  const stable2 = tokens.find((t) => t.symbol === "USDT" && t.symbol !== stable?.symbol)
-                ?? tokens.find((t) => t.symbol === "DAI");
+  const stable2 = tokens.find(
+    (t) => (t.symbol === "USDT" || t.symbol === "DAI") && t.symbol !== stable?.symbol
+  );
 
   type Pool = { name: string; tokenA: Token; tokenB: Token; tagline: string };
   const pools: Pool[] = [];
-  if (native && stable) pools.push({ name: `${native.symbol}/${stable.symbol}`, tokenA: native, tokenB: stable, tagline: "Most liquid pair" });
-  if (stable && stable2) pools.push({ name: `${stable.symbol}/${stable2.symbol}`, tokenA: stable, tokenB: stable2, tagline: "Stable / stable" });
-  // Add another popular pair if available
-  const wbtc = tokens.find((t) => t.symbol === "WBTC" || t.symbol === "cbBTC" || t.symbol === "BTCB");
-  if (native && wbtc) pools.push({ name: `${native.symbol}/${wbtc.symbol}`, tokenA: native, tokenB: wbtc, tagline: "Crypto majors" });
+  if (native && stable) {
+    pools.push({
+      name: `${native.symbol}/${stable.symbol}`,
+      tokenA: native,
+      tokenB: stable,
+      tagline: "Most liquid pair",
+    });
+  }
+  if (stable && stable2) {
+    pools.push({
+      name: `${stable.symbol}/${stable2.symbol}`,
+      tokenA: stable,
+      tokenB: stable2,
+      tagline: "Stable / stable",
+    });
+  }
+  const wbtc = tokens.find(
+    (t) => t.symbol === "WBTC" || t.symbol === "cbBTC" || t.symbol === "BTCB"
+  );
+  if (native && wbtc) {
+    pools.push({
+      name: `${native.symbol}/${wbtc.symbol}`,
+      tokenA: native,
+      tokenB: wbtc,
+      tagline: "Crypto majors",
+    });
+  }
 
   // Build Uniswap deep link. Their URL format:
   //   https://app.uniswap.org/positions/create/v3?currencyA=...&currencyB=...&chain=base

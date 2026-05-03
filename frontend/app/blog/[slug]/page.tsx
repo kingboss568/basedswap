@@ -19,6 +19,8 @@ export async function generateMetadata({
   return {
     title: `${post.title} | BasedSwap Blog`,
     description: post.description,
+    keywords: post.tags,
+    alternates: { canonical: `/blog/${post.slug}` },
     openGraph: {
       title: post.title,
       description: post.description,
@@ -26,6 +28,7 @@ export async function generateMetadata({
       type: "article",
       publishedTime: post.date,
       tags: post.tags,
+      locale: post.language === "zh" ? "zh_TW" : "en_US",
     },
     twitter: {
       card: "summary_large_image",
@@ -215,15 +218,18 @@ function renderInline(text: string): React.ReactNode {
 function renderBlock(block: Block, idx: number): React.ReactNode {
   switch (block.type) {
     case "heading": {
-      const Tag = `h${block.level}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+      // Demote one level: the page already has an h1 for the post title in the header.
+      const level = Math.min(block.level + 1, 6);
+      const Tag = `h${level}` as "h2" | "h3" | "h4" | "h5" | "h6";
       const sizes: Record<number, string> = {
-        1: "text-4xl font-bold mt-10 mb-4",
         2: "text-2xl font-bold mt-10 mb-3",
         3: "text-xl font-semibold mt-8 mb-2",
         4: "text-lg font-semibold mt-6 mb-2",
+        5: "text-base font-semibold mt-4 mb-2",
+        6: "text-sm font-semibold mt-4 mb-2",
       };
       return (
-        <Tag key={idx} className={sizes[block.level] ?? "font-semibold mt-4 mb-2"}>
+        <Tag key={idx} className={sizes[level] ?? "font-semibold mt-4 mb-2"}>
           {renderInline(block.text)}
         </Tag>
       );
@@ -299,13 +305,51 @@ export default function BlogPostPage({
   const post = getPostBySlug(params.slug);
   if (!post) notFound();
 
-  const blocks = parseMarkdown(post.content);
+  const allBlocks = parseMarkdown(post.content);
+  // Drop the leading h1 if it duplicates the post title (we already render title in <header>).
+  const blocks =
+    allBlocks[0]?.type === "heading" &&
+    allBlocks[0].level === 1 &&
+    allBlocks[0].text.trim() === post.title.trim()
+      ? allBlocks.slice(1)
+      : allBlocks;
   const others = getAllPosts()
     .filter((p) => p.slug !== post.slug)
     .slice(0, 3);
 
+  const articleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.description,
+    datePublished: post.date,
+    dateModified: post.date,
+    inLanguage: post.language === "zh" ? "zh-Hant" : "en",
+    keywords: post.tags.join(", "),
+    author: { "@type": "Organization", name: "BasedSwap" },
+    publisher: {
+      "@type": "Organization",
+      name: "BasedSwap",
+      logo: {
+        "@type": "ImageObject",
+        url: "https://basedswap-azure.vercel.app/icon.svg",
+      },
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `https://basedswap-azure.vercel.app/blog/${post.slug}`,
+    },
+  };
+
   return (
-    <article className="mx-auto max-w-3xl py-8">
+    <article
+      lang={post.language === "zh" ? "zh-Hant" : "en"}
+      className="mx-auto max-w-3xl py-8"
+    >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
       <Link
         href="/blog"
         className="mb-8 inline-block text-sm text-muted hover:text-white"
@@ -315,13 +359,13 @@ export default function BlogPostPage({
 
       <header className="mb-8">
         <div className="mb-3 flex items-center gap-3 text-xs text-muted">
-          <span>
+          <time dateTime={post.date}>
             {new Date(post.date).toLocaleDateString("en-US", {
               year: "numeric",
               month: "long",
               day: "numeric",
             })}
-          </span>
+          </time>
           <span>·</span>
           <span>{post.readingTime}</span>
           <span>·</span>
@@ -329,6 +373,9 @@ export default function BlogPostPage({
             {post.language === "zh" ? "中文" : "EN"}
           </span>
         </div>
+        <h1 className="mb-3 text-3xl font-bold leading-tight tracking-tight md:text-4xl">
+          {post.title}
+        </h1>
         <p className="mb-2 text-base text-muted">{post.description}</p>
       </header>
 

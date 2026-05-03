@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   useAccount,
   useChainId,
@@ -99,39 +99,54 @@ export function SwapCard() {
   const tokenInForQuote = tokenIn.isNative ? v3.weth : tokenIn.address;
   const tokenOutForQuote = tokenOut.isNative ? v3.weth : tokenOut.address;
 
+  // Bumped on every fetchQuote call so a slow stale request can't overwrite a newer result.
+  const quoteReqId = useRef(0);
+
   const fetchQuote = useCallback(async () => {
+    const reqId = ++quoteReqId.current;
     if (!publicClient || parsedAmountIn === 0n || !supported) {
       setQuote(null);
+      setQuoting(false);
       return;
     }
     if (tokenInForQuote.toLowerCase() === tokenOutForQuote.toLowerCase()) {
       setQuote(null);
+      setQuoting(false);
       return;
     }
     setQuoting(true);
-    let best: Quote | null = null;
-    for (const fee of FEE_TIERS) {
-      try {
-        const result = await publicClient.simulateContract({
-          address: v3.quoterV2,
-          abi: QUOTER_V2_ABI,
-          functionName: "quoteExactInputSingle",
-          args: [
-            {
-              tokenIn: tokenInForQuote,
-              tokenOut: tokenOutForQuote,
-              amountIn: parsedAmountIn,
-              fee,
-              sqrtPriceLimitX96: 0n,
-            },
-          ],
-        });
-        const amountOut = result.result[0] as bigint;
-        if (amountOut > 0n && (!best || amountOut > best.amountOut)) {
-          best = { amountOut, fee };
+
+    const results = await Promise.all(
+      FEE_TIERS.map(async (fee): Promise<Quote | null> => {
+        try {
+          const result = await publicClient.simulateContract({
+            address: v3.quoterV2,
+            abi: QUOTER_V2_ABI,
+            functionName: "quoteExactInputSingle",
+            args: [
+              {
+                tokenIn: tokenInForQuote,
+                tokenOut: tokenOutForQuote,
+                amountIn: parsedAmountIn,
+                fee,
+                sqrtPriceLimitX96: 0n,
+              },
+            ],
+          });
+          const amountOut = result.result[0] as bigint;
+          return amountOut > 0n ? { amountOut, fee } : null;
+        } catch {
+          return null;
         }
-      } catch {}
-    }
+      })
+    );
+
+    if (reqId !== quoteReqId.current) return;
+
+    const best = results.reduce<Quote | null>(
+      (acc, q) => (q && (!acc || q.amountOut > acc.amountOut) ? q : acc),
+      null
+    );
     setQuote(best);
     setQuoting(false);
   }, [publicClient, parsedAmountIn, tokenInForQuote, tokenOutForQuote, v3?.quoterV2, supported]);
@@ -330,6 +345,8 @@ export function SwapCard() {
             </span>
           )}
           <button
+            type="button"
+            aria-label={`Slippage tolerance, currently ${slippage}%`}
             className="text-xs text-muted hover:text-white"
             onClick={() => {
               const v = prompt("Slippage tolerance (%)", String(slippage));
@@ -381,11 +398,12 @@ export function SwapCard() {
 
       <div className="my-2 flex justify-center">
         <button
+          type="button"
           onClick={handleFlip}
           className="rounded-full border border-border bg-panel2 p-2 hover:border-accent"
-          aria-label="Flip"
+          aria-label="Swap from and to tokens"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M7 10l5-5 5 5M7 14l5 5 5-5" />
           </svg>
         </button>

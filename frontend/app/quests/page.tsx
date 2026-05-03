@@ -1,7 +1,11 @@
+import type { Metadata } from "next";
 import { QuestPanel } from "@/components/QuestPanel";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Quests — BasedSwap",
+  description:
+    "Earn BasedSwap points: daily check-in (+10), per-swap bonus (+5), and consecutive-day streaks. Tracked per wallet.",
+  alternates: { canonical: "/quests" },
 };
 
 export default function QuestsPage() {

@@ -22,26 +22,29 @@ export function Navbar() {
   }, [address]);
 
   return (
-    <header className="border-b border-border bg-panel/60 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <Link href="/" className="flex items-center gap-2">
+    <header className="sticky top-0 z-30 border-b border-border bg-panel/80 backdrop-blur supports-[backdrop-filter]:bg-panel/60">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4">
+        <Link href="/" className="flex items-center gap-2" aria-label="BasedSwap home">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent2 font-bold">
             B
           </div>
           <span className="text-lg font-semibold tracking-tight">BasedSwap</span>
         </Link>
 
-        <nav className="hidden gap-6 md:flex">
-          <Link href="/" className="text-sm hover:text-accent">
+        <nav
+          aria-label="Primary"
+          className="flex gap-4 overflow-x-auto text-sm md:gap-6"
+        >
+          <Link href="/" className="shrink-0 hover:text-accent">
             Swap
           </Link>
-          <Link href="/pool" className="text-sm text-muted hover:text-white">
+          <Link href="/pool" className="shrink-0 text-muted hover:text-white">
             Pool
           </Link>
-          <Link href="/quests" className="text-sm text-muted hover:text-white">
+          <Link href="/quests" className="shrink-0 text-muted hover:text-white">
             Quests
           </Link>
-          <Link href="/blog" className="text-sm text-muted hover:text-white">
+          <Link href="/blog" className="shrink-0 text-muted hover:text-white">
             Blog
           </Link>
         </nav>
@@ -52,6 +55,7 @@ export function Navbar() {
               href="/quests"
               className="hidden rounded-full border border-border bg-panel2 px-3 py-1.5 text-xs font-medium hover:border-accent sm:block"
               title="View your points"
+              aria-label={`View your ${points} BasedSwap points`}
             >
               <span className="bg-gradient-to-r from-accent to-accent2 bg-clip-text text-transparent">
                 ⚡ {points}
