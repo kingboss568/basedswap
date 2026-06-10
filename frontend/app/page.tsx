@@ -13,7 +13,7 @@ export default function Home() {
           <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl">
             Trade tokens on{" "}
             <span className="bg-gradient-to-r from-accent to-accent2 bg-clip-text text-transparent">
-              7 chains
+              {SUPPORTED_CHAIN_IDS.length} chains
             </span>
             .<br />
             Earn while you swap.

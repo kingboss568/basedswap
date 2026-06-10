@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+
+# Hardhat
+artifacts/
+cache/
+
+# Env files — never commit secrets
+.env
+.env.local
+.env*.local
+
+# Misc
+.DS_Store
+*.log
