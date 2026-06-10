@@ -33,6 +33,7 @@ type V3Deployment = {
   quoterV2: `0x${string}`;
   weth: `0x${string}`;
   factory: `0x${string}`;
+  positionManager: `0x${string}`;
 };
 
 export const UNISWAP_V3: Record<number, V3Deployment> = {
@@ -41,48 +42,56 @@ export const UNISWAP_V3: Record<number, V3Deployment> = {
     quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
     weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    positionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   },
   [OPTIMISM]: {
     swapRouter02: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
     quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
     weth: "0x4200000000000000000000000000000000000006",
     factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    positionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   },
   [BNB]: {
     swapRouter02: "0xB971eF87ede563556b2ED4b1C0b0019111Dd85d2",
     quoterV2: "0x78D78E420Da98ad378D7799bE8f4AF69033EB077",
     weth: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
     factory: "0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7",
+    positionManager: "0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613",
   },
   [POLYGON]: {
     swapRouter02: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
     quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
     weth: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
     factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    positionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   },
   [BASE]: {
     swapRouter02: "0x2626664c2603336E57B271c5C0b26F421741e481",
     quoterV2: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
     weth: "0x4200000000000000000000000000000000000006",
     factory: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+    positionManager: "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1",
   },
   [BASE_SEPOLIA]: {
     swapRouter02: "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4",
     quoterV2: "0xC5290058841028F1614F3A6F0F5816cAd0df5E27",
     weth: "0x4200000000000000000000000000000000000006",
     factory: "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24",
+    positionManager: "0x27F971cb582BF9E50F397e4d29a5C7A34f11faA2",
   },
   [ARBITRUM]: {
     swapRouter02: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
     quoterV2: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
     weth: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
     factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    positionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   },
   [AVALANCHE]: {
     swapRouter02: "0xbb00FF08d01D300023C629E8fFfFcb65A5a578cE",
     quoterV2: "0xbe0F5544EC67e9B3b2D979aaA43f18Fd87E6257F",
     weth: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
     factory: "0x740b1c1de25031C31FF4fC9A62f554A55cdC1baD",
+    positionManager: "0x655C406EBFa14EE2006250925e54ec43AD184f8B",
   },
 };
 
@@ -90,6 +99,46 @@ export const ADDRESS_THIS = "0x0000000000000000000000000000000000000002" as `0x$
 export const MSG_SENDER = "0x0000000000000000000000000000000000000001" as `0x${string}`;
 export const NATIVE_TOKEN_SENTINEL = "0x0000000000000000000000000000000000000000" as `0x${string}`;
 export const FEE_TIERS = [500, 3000, 10000, 100] as const;
+
+// Fee tiers tried on each hop of a 2-hop route. Kept short so a quote
+// round stays under ~12 RPC calls (all fired in parallel).
+export const HOP_FEE_TIERS = [500, 3000] as const;
+
+// Intermediate tokens for multi-hop routing (wrapped native + main stable
+// per chain). When no direct pool exists for a pair, we try tokenIn → mid → tokenOut.
+export const INTERMEDIATES: Record<number, readonly `0x${string}`[]> = {
+  [ETHEREUM]: [
+    "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // WETH
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
+  ],
+  [OPTIMISM]: [
+    "0x4200000000000000000000000000000000000006", // WETH
+    "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", // USDC
+  ],
+  [BNB]: [
+    "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", // WBNB
+    "0x55d398326f99059fF775485246999027B3197955", // USDT
+  ],
+  [POLYGON]: [
+    "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // WPOL
+    "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", // USDC
+  ],
+  [BASE]: [
+    "0x4200000000000000000000000000000000000006", // WETH
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC
+  ],
+  [BASE_SEPOLIA]: [
+    "0x4200000000000000000000000000000000000006", // WETH
+  ],
+  [ARBITRUM]: [
+    "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", // WETH
+    "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // USDC
+  ],
+  [AVALANCHE]: [
+    "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7", // WAVAX
+    "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", // USDC
+  ],
+};
 
 export const CHAIN_META: Record<number, { name: string; nativeSymbol: string; uniSlug: string }> = {
   [ETHEREUM]: { name: "Ethereum", nativeSymbol: "ETH", uniSlug: "mainnet" },
@@ -119,6 +168,7 @@ export type Token = {
   address: `0x${string}`;
   decimals: number;
   isNative?: boolean;
+  imported?: boolean; // user-imported via address — show a caution badge
 };
 
 // =====================================================
@@ -258,4 +308,46 @@ export const SUPPORTED_CHAIN_IDS = [
 export function isSupportedChain(chainId: number | undefined): boolean {
   if (!chainId) return false;
   return chainId in UNISWAP_V3;
+}
+
+// =====================================================
+// Custom (user-imported) tokens — persisted per chain
+// =====================================================
+const CUSTOM_TOKENS_KEY = (chainId: number) => `basedswap:custom-tokens:${chainId}`;
+
+export function loadCustomTokens(chainId: number): Token[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_TOKENS_KEY(chainId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (t): t is Token =>
+        t && typeof t.symbol === "string" && typeof t.address === "string" && typeof t.decimals === "number"
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomToken(chainId: number, token: Token): Token[] {
+  const existing = loadCustomTokens(chainId);
+  const lower = token.address.toLowerCase();
+  if (existing.some((t) => t.address.toLowerCase() === lower)) return existing;
+  const next = [...existing, { ...token, imported: true }];
+  try {
+    window.localStorage.setItem(CUSTOM_TOKENS_KEY(chainId), JSON.stringify(next));
+  } catch {}
+  return next;
+}
+
+export function removeCustomToken(chainId: number, address: string): Token[] {
+  const next = loadCustomTokens(chainId).filter(
+    (t) => t.address.toLowerCase() !== address.toLowerCase()
+  );
+  try {
+    window.localStorage.setItem(CUSTOM_TOKENS_KEY(chainId), JSON.stringify(next));
+  } catch {}
+  return next;
 }
